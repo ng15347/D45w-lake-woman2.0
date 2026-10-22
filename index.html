@@ -1,0 +1,913 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#04060d">
+<meta name="description" content="湖中女人：向湖中女神祈求恩賜的互動小遊戲。">
+<title>湖中女人</title>
+<style>
+/* 版面概念：手機直式故事書。上方是文字，中央是湖心女神，下方是湖面與按鈕。單一深色奇幻風格。 */
+:root{
+  --night:#04060d;
+  --gold:#e3b75a;
+  --gold-hi:#f7dfa0;
+  --ivory:#f5ecd8;
+  --ivory-dim:rgba(245,236,216,.7);
+  --ink:#1c1405;
+  --serif:"Noto Serif TC","Source Han Serif TC","Songti TC","PMingLiU","MingLiU",serif;
+  --hei:"LakeHei","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  --sans:"PingFang TC","Noto Sans TC","Microsoft JhengHei","Heiti TC",sans-serif;
+  color-scheme:dark;
+}
+/* 第二頁字體：思源黑體（Noto Sans TC，SIL OFL 開源授權，可免費商用），只保留網站用到的字 */
+@font-face{font-family:"LakeHei";src:url("fonts/NotoSansTC-Subset-Regular.woff") format("woff");font-weight:400;font-display:swap;}
+@font-face{font-family:"LakeHei";src:url("fonts/NotoSansTC-Subset-Bold.woff") format("woff");font-weight:700;font-display:swap;}
+[hidden]{display:none !important;}
+html,body{height:100%;margin:0;}
+body{
+  background:var(--night);
+  color:var(--ivory);
+  font-family:var(--sans);
+  overflow:hidden;
+  -webkit-tap-highlight-color:transparent;
+}
+button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation;}
+
+/* ===== 外框：桌機時把畫面限制成直式比例 ===== */
+.app{
+  position:fixed;inset:0;
+  display:flex;justify-content:center;
+  background:linear-gradient(180deg,#05081a 0%,#0b1838 55%,#060b1c 100%);
+}
+.stage{
+  position:relative;
+  width:min(100%,520px,50vh);
+  height:100%;
+  overflow:hidden;
+}
+@supports (height:1dvh){ .stage{width:min(100%,520px,50dvh);} }
+@media (min-aspect-ratio:1/1){
+  .scene{-webkit-mask-image:linear-gradient(90deg,transparent,#000 10%,#000 90%,transparent);
+         mask-image:linear-gradient(90deg,transparent,#000 10%,#000 90%,transparent);}
+}
+.scene{position:absolute;inset:0;width:100%;height:100%;display:block;}
+
+/* ===== 開場黑幕：由黑轉亮 ===== */
+.veil{
+  position:absolute;inset:0;background:#000;opacity:1;pointer-events:none;
+  transition:opacity 3s ease-in-out;
+}
+.stage.lit .veil{opacity:0;}
+
+/* ===== SVG 元素的變形基準 ===== */
+.scene g,.scene ellipse,.scene circle{transform-box:fill-box;transform-origin:50% 50%;}
+
+/* 背景暗度（數字越大越暗），讓湖面亮度跟著故事變化 */
+.dim{opacity:.6;transition:opacity 2.6s ease;}
+[data-scene="1"] .dim{opacity:.58;}
+[data-scene="2"] .dim{opacity:.5;}
+[data-scene="3"] .dim{opacity:.4;}
+[data-scene="4"] .dim{opacity:.16;}
+[data-scene="5"] .dim{opacity:.55;transition-duration:2.8s;}
+[data-scene="6"] .dim{opacity:.3;transition-duration:.9s;}
+
+/* 湖心光芒 */
+.lake-glow{opacity:0;transition:opacity 2.4s ease,transform 2.4s ease;}
+[data-scene="1"] .lake-glow{opacity:.3;}
+[data-scene="2"] .lake-glow{opacity:.4;}
+[data-scene="3"] .lake-glow{opacity:.55;}
+[data-scene="4"] .lake-glow{opacity:1;transform:scale(1.18);}
+[data-scene="5"] .lake-glow{opacity:.1;transform:scale(.9);transition-duration:2.8s;}
+[data-scene="6"] .lake-glow{opacity:.85;transition-duration:.9s;}
+
+/* 光柱 */
+.beam{opacity:0;transition:opacity 2s ease;}
+[data-scene="4"] .beam{opacity:.6;}
+[data-scene="6"] .beam{opacity:.25;transition-duration:.9s;}
+
+/* 女神：整體浮現；模糊層與清晰層交替，呈現由朦朧到清楚 */
+.goddess{opacity:0;transform:translateY(30px);transform-origin:50% 100%;
+  transition:opacity 3s ease,transform 3.6s ease;}
+.g-blur,.g-sharp{transition:opacity 3s ease;}
+.g-blur{opacity:.7;}
+.g-sharp{opacity:0;}
+[data-scene="2"] .goddess,
+[data-scene="3"] .goddess,
+[data-scene="4"] .goddess{opacity:1;transform:translateY(0);}
+[data-scene="3"] .g-sharp{opacity:.5;}
+[data-scene="4"] .g-sharp{opacity:.82;}
+[data-scene="4"] .g-blur{opacity:.55;}
+[data-scene="5"] .goddess{opacity:0;transform:translateY(16px);transition-duration:2.6s;}
+
+/* 漣漪：一次性擴散（程式繪製） */
+.ripple{opacity:0;}
+.fx-r1 .r1{animation:ripple 4.4s ease-out forwards;}
+.fx-r23 .r2{animation:ripple 4.4s ease-out .1s forwards;}
+.fx-r23 .r3{animation:ripple 4.4s ease-out 1.5s forwards;}
+@keyframes ripple{
+  0%{opacity:0;transform:scale(.6);}
+  12%{opacity:.9;}
+  100%{opacity:0;transform:scale(5);}
+}
+
+/* 金色粒子：一次性上升 */
+.spark{opacity:0;}
+.fx-sparks .spark{animation:rise 2.8s ease-out var(--d,0s) forwards;}
+@keyframes rise{
+  0%{opacity:0;transform:translateY(0);}
+  20%{opacity:1;}
+  100%{opacity:0;transform:translateY(-300px);}
+}
+
+/* 略過時：所有轉場立即完成 */
+.stage.instant *, .stage.instant *::before, .stage.instant *::after{
+  transition:none !important;
+}
+
+/* ===== 上方列 ===== */
+.topbar{
+  position:absolute;left:0;right:0;top:0;
+  padding:calc(env(safe-area-inset-top,0px) + 12px) 16px 0;
+  display:flex;align-items:center;justify-content:space-between;
+  z-index:5;
+}
+.brand{
+  font-family:var(--serif);font-size:14px;letter-spacing:.24em;color:var(--gold);
+  text-shadow:0 0 10px rgba(0,0,0,.8);
+}
+.skip{
+  min-height:44px;padding:0 16px;border-radius:22px;
+  background:rgba(5,9,22,.6);
+  border:1px solid rgba(227,183,90,.45);
+  color:var(--ivory);font-size:14px;letter-spacing:.12em;
+  transition:opacity .4s ease,transform .15s ease,background .2s ease;
+}
+.skip:active{transform:scale(.95);background:rgba(227,183,90,.18);}
+.skip.gone{opacity:0;pointer-events:none;}
+
+/* ===== 故事文字 ===== */
+.caption{
+  position:absolute;left:0;right:0;
+  container-type:inline-size;
+  top:calc(env(safe-area-inset-top,0px) + 80px);
+  padding:0 16px;
+  text-align:center;z-index:4;
+  pointer-events:none;
+}
+.line{
+  margin:0 auto;max-width:20em;
+  font-family:var(--serif);
+  /* 依畫面寬度自動縮放，確保最長的一句（14 字）也能放在一行 */
+  font-size:min(25px,calc((100cqw - 32px) / 15));
+  line-height:1.85;letter-spacing:.04em;
+  color:var(--ivory);
+  text-shadow:0 0 18px rgba(4,6,13,.95),0 1px 3px rgba(0,0,0,.9);
+  opacity:0;transform:translateY(6px);
+  transition:opacity .45s ease,transform .6s ease;
+}
+.caption.in .line{opacity:1;transform:none;}
+/* 一句一行，不換行 */
+.seg{display:block;white-space:nowrap;}
+
+/* 減少動態時：一次顯示整段故事 */
+.story-full{
+  list-style:none;margin:0 auto;padding:0;max-width:21em;
+  display:flex;flex-direction:column;gap:10px;
+  font-family:var(--serif);font-size:min(17px,calc((100cqw - 32px) / 15));line-height:1.7;letter-spacing:.03em;
+  text-shadow:0 0 14px rgba(4,6,13,.95),0 1px 3px rgba(0,0,0,.9);
+}
+.story-full li:last-child{color:var(--gold-hi);}
+
+/* ===== 結尾按鈕區 ===== */
+.finale{
+  position:absolute;left:0;right:0;bottom:0;z-index:6;
+  padding:0 24px calc(env(safe-area-inset-bottom,0px) + 28px);
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+  opacity:0;transform:translateY(14px);visibility:hidden;
+  transition:opacity .8s ease,transform .8s ease,visibility 0s linear .8s;
+}
+.finale.show{opacity:1;transform:none;visibility:visible;transition-delay:0s;}
+
+.pray{
+  position:relative;isolation:isolate;
+  width:min(100%,320px);height:64px;
+  border:0;background:none;
+  font-family:var(--serif);font-size:21px;font-weight:700;letter-spacing:.32em;
+  color:var(--ink);text-indent:.32em;
+  filter:drop-shadow(0 0 16px rgba(227,183,90,.45));
+  transition:transform .12s ease;
+}
+.pray::before,.pray::after{
+  content:"";position:absolute;z-index:-1;
+  clip-path:polygon(16px 0,calc(100% - 16px) 0,100% 50%,calc(100% - 16px) 100%,16px 100%,0 50%);
+}
+.pray::before{
+  inset:0;
+  background:linear-gradient(180deg,#fff1c4 0%,#f0cd78 38%,#c9922f 62%,#e9c66c 100%);
+}
+.pray::after{
+  inset:4px;
+  background:linear-gradient(180deg,rgba(255,255,255,.35),rgba(255,255,255,0) 55%);
+  box-shadow:inset 0 0 0 1px rgba(90,58,10,.5);
+}
+.pray:active{transform:scale(.96);}
+.pray:focus-visible,.skip:focus-visible,.ghost:focus-visible{
+  outline:2px solid var(--gold-hi);outline-offset:4px;
+}
+.ghost{
+  min-height:44px;padding:0 18px;border:0;background:none;
+  color:var(--ivory-dim);font-size:15px;letter-spacing:.14em;
+  text-shadow:0 0 10px rgba(0,0,0,.9);
+}
+.ghost:active{color:var(--gold-hi);}
+
+/* =====================================================
+   第二頁：互動召喚
+   ===================================================== */
+.page2{
+  position:absolute;inset:0;z-index:8;
+  display:flex;flex-direction:column;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  background:#050914;
+  font-family:var(--hei);
+  opacity:0;transition:opacity .6s ease;
+}
+.page2 button{font-family:var(--hei);}
+.page2.show{opacity:1;}
+
+/* 頂部 */
+.p2-top{
+  flex:none;position:relative;z-index:3;
+  display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
+  padding:8px 8px 4px;
+}
+.p2-title{
+  margin:0;font-family:var(--hei);font-weight:700;
+  font-size:20px;letter-spacing:.3em;text-indent:.3em;color:var(--gold-hi);
+  text-shadow:0 0 14px rgba(227,183,90,.45),0 1px 3px rgba(0,0,0,.9);
+  white-space:nowrap;
+}
+.p2-back{justify-self:start;font-size:14px;padding:0 10px;}
+.p2-sound{
+  justify-self:end;display:inline-flex;align-items:center;gap:6px;
+  min-height:40px;padding:0 12px;border-radius:20px;
+  background:rgba(5,9,22,.6);border:1px solid rgba(227,183,90,.4);
+  color:var(--ivory-dim);font-size:13px;letter-spacing:.08em;
+}
+.p2-sound svg{width:16px;height:16px;flex:none;}
+.p2-sound .wave{display:none;}
+.p2-sound[aria-pressed="true"]{color:var(--gold-hi);border-color:var(--gold);}
+.p2-sound[aria-pressed="true"] .wave{display:inline;}
+.p2-sound[aria-pressed="true"] .mute{display:none;}
+.p2-sound:focus-visible{outline:2px solid var(--gold-hi);outline-offset:3px;}
+
+/* 湖泊召喚區 */
+.p2-scene{flex:1 1 auto;min-height:0;position:relative;overflow:hidden;
+  -webkit-mask-image:linear-gradient(180deg,transparent 0,#000 6%,#000 90%,transparent 100%);
+          mask-image:linear-gradient(180deg,transparent 0,#000 6%,#000 90%,transparent 100%);}
+.scene2{position:absolute;inset:0;width:100%;height:100%;display:block;overflow:visible;}
+.scene2 g,.scene2 ellipse,.scene2 circle{transform-box:fill-box;transform-origin:50% 50%;}
+
+/* 湖心光芒、光柱 */
+.p2-glow{opacity:.25;transition:opacity .6s ease,transform .6s ease;}
+.page2.fx-glow .p2-glow{opacity:1;transform:scale(1.15);}
+.p2-beam{opacity:0;transition:opacity .7s ease;}
+.page2.fx-beam .p2-beam{opacity:.7;}
+
+/* 漣漪（最多三圈） */
+.p2-ripple{opacity:0;}
+.page2.fx-glow .p2-ripple{animation:p2ripple 2.2s ease-out forwards;}
+.page2.fx-glow .p2-ripple.b{animation-delay:.35s;}
+.page2.fx-glow .p2-ripple.c{animation-delay:.7s;}
+@keyframes p2ripple{
+  0%{opacity:0;transform:scale(.5);}
+  15%{opacity:.95;}
+  100%{opacity:0;transform:scale(4.2);}
+}
+
+/* 金色光點（六個） */
+.p2-spark{opacity:0;}
+.page2.fx-beam .p2-spark{animation:p2rise 1.8s ease-out var(--d,0s) forwards;}
+@keyframes p2rise{
+  0%{opacity:0;transform:translateY(0);}
+  25%{opacity:1;}
+  100%{opacity:0;transform:translateY(-220px);}
+}
+
+/* 魔法陣：平常微亮慢轉，召喚時發亮 */
+.p2-circle{opacity:.35;transition:opacity .4s ease;}
+.p2-circle-spin{animation:p2spin 16s linear infinite;}
+.p2-circle-glow{opacity:0;transition:opacity .4s ease;}
+.page2.is-summoning .p2-circle{opacity:1;}
+.page2.is-summoning .p2-circle-glow{opacity:.9;}
+.page2.is-summoning .p2-circle-spin{animation-duration:4s;}
+@keyframes p2spin{to{transform:rotate(360deg);}}
+
+/* 金色物品：從湖面升起、放大、漂浮 */
+.p2-item{opacity:0;transition:opacity .3s ease;}
+.page2.fx-item .p2-item{opacity:1;transition-duration:.5s;}
+.page2.fx-item .p2-item-rise{animation:p2itemRise 1s cubic-bezier(.2,.7,.3,1) both;}
+.page2.has-result .p2-item-float{animation:p2float 3.2s ease-in-out infinite;}
+@keyframes p2itemRise{
+  0%{transform:translateY(95px) scale(.3);}
+  100%{transform:translateY(0) scale(1);}
+}
+@keyframes p2float{
+  0%,100%{transform:translateY(0);}
+  50%{transform:translateY(-8px);}
+}
+
+/* 吉祥物：平常輕微呼吸；召喚中期待晃動；結果時彈跳一次 */
+.p2-mascot{transform-origin:50% 100%;animation:p2breathe 3.4s ease-in-out infinite;}
+@keyframes p2breathe{
+  0%,100%{transform:scale(1,1);}
+  50%{transform:scale(1.012,1.022);}
+}
+.p2-mascot-react{transform-origin:50% 100%;}
+.page2.is-summoning:not(.fx-react) .p2-mascot-react{animation:p2wobble .5s ease-in-out infinite alternate;}
+.page2.fx-react .p2-mascot-react{animation:p2bounce .55s ease-out;}
+@keyframes p2wobble{from{transform:rotate(-2deg);}to{transform:rotate(2deg);}}
+@keyframes p2bounce{
+  0%{transform:translateY(0) scale(1);}
+  30%{transform:translateY(-16px) scale(1.06,.96);}
+  60%{transform:translateY(0) scale(.97,1.03);}
+  100%{transform:translateY(0) scale(1);}
+}
+
+/* 結果文字 */
+.p2-result{
+  flex:none;container-type:inline-size;
+  padding:4px 16px 6px;text-align:center;
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+}
+.p2-item-name{
+  margin:0;min-height:20px;
+  font-size:13px;letter-spacing:.24em;color:var(--gold);
+  opacity:0;transition:opacity .4s ease;
+}
+.p2-slogan{
+  margin:0;
+  font-family:var(--hei);font-weight:400;
+  font-size:min(22px,calc((100cqw - 32px) / 14));
+  line-height:1.6;letter-spacing:.04em;color:var(--ivory);
+  min-height:3.2em;
+  display:flex;flex-direction:column;justify-content:center;
+  opacity:0;transform:translateY(6px);
+  transition:opacity .45s ease,transform .5s ease;
+}
+.p2-slogan.hint{color:var(--ivory-dim);font-size:min(17px,calc((100cqw - 32px) / 15));}
+.p2-slogan.show,.p2-item-name.show{opacity:1;transform:none;}
+
+/* 操作按鈕 */
+.p2-actions{flex:none;display:flex;justify-content:center;padding:6px 24px 18px;}
+.p2-summon{transition:transform .12s ease,filter .2s ease,opacity .3s ease;}
+.p2-summon:active:not(:disabled){
+  transform:scale(.95);
+  filter:drop-shadow(0 0 26px rgba(247,223,160,.85));
+}
+.p2-summon:disabled{opacity:.55;filter:none;cursor:default;}
+
+/* 結果直接顯示（返回、切到背景時） */
+.page2.instant *{transition:none !important;}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none !important;transition:none !important;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <main class="stage" id="stage" data-scene="0">
+
+    <!-- 畫面座標與背景圖相同（1370 × 1148），湖心在 (688, 662) -->
+    <svg class="scene" viewBox="0 0 1370 1148" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <defs>
+        <radialGradient id="lakeGlow">
+          <stop offset="0" stop-color="#fff3cf" stop-opacity=".95"/>
+          <stop offset=".35" stop-color="#f0c766" stop-opacity=".5"/>
+          <stop offset="1" stop-color="#e3b75a" stop-opacity="0"/>
+        </radialGradient>
+        <radialGradient id="halo">
+          <stop offset="0" stop-color="#f7dfa0" stop-opacity=".4"/>
+          <stop offset="1" stop-color="#f7dfa0" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="beamFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#f7dfa0" stop-opacity="0"/>
+          <stop offset=".7" stop-color="#f7dfa0" stop-opacity=".3"/>
+          <stop offset="1" stop-color="#fff3cf" stop-opacity=".7"/>
+        </linearGradient>
+        <linearGradient id="topShade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#03050c" stop-opacity=".8"/>
+          <stop offset="1" stop-color="#03050c" stop-opacity="0"/>
+        </linearGradient>
+        <linearGradient id="fadeGrad" gradientUnits="userSpaceOnUse" x1="0" y1="560" x2="0" y2="695">
+          <stop offset="0" stop-color="#fff"/>
+          <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+        </linearGradient>
+        <mask id="fadeBottom" maskUnits="userSpaceOnUse" x="400" y="200" width="600" height="520">
+          <rect x="400" y="200" width="600" height="520" fill="url(#fadeGrad)"/>
+        </mask>
+      </defs>
+
+      <!-- 背景圖 -->
+      <image href="images/lake-bg.webp" x="0" y="0" width="1370" height="1148" preserveAspectRatio="none"/>
+
+      <!-- 依故事調整的暗度 -->
+      <rect class="dim" x="0" y="0" width="1370" height="1148" fill="#040818"/>
+      <!-- 上方加深，讓文字清楚 -->
+      <rect x="0" y="0" width="1370" height="400" fill="url(#topShade)"/>
+
+      <!-- 光柱 -->
+      <path class="beam" d="M672 0 L704 0 L780 662 L596 662 Z" fill="url(#beamFill)"/>
+
+      <!-- 女神（倒影＋模糊層＋清晰層） -->
+      <g class="goddess">
+        <ellipse cx="688" cy="480" rx="210" ry="260" fill="url(#halo)"/>
+        <g opacity=".14" transform="matrix(1 0 0 -0.5 0 993)">
+          <image href="images/goddess.webp" x="555" y="290" width="267" height="400"/>
+        </g>
+        <g mask="url(#fadeBottom)">
+          <image class="g-blur" href="images/goddess-blur.webp" x="555" y="290" width="267" height="400"/>
+          <image class="g-sharp" href="images/goddess.webp" x="555" y="290" width="267" height="400"/>
+        </g>
+      </g>
+
+      <!-- 湖心光芒 -->
+      <ellipse class="lake-glow" cx="688" cy="664" rx="300" ry="46" fill="url(#lakeGlow)"/>
+
+      <!-- 漣漪（最多三圈，程式繪製） -->
+      <g fill="none" stroke="#f7dfa0" stroke-width="1.6">
+        <ellipse class="ripple r1" cx="688" cy="664" rx="80" ry="10" vector-effect="non-scaling-stroke"/>
+        <ellipse class="ripple r2" cx="688" cy="664" rx="80" ry="10" vector-effect="non-scaling-stroke"/>
+        <ellipse class="ripple r3" cx="688" cy="664" rx="80" ry="10" vector-effect="non-scaling-stroke"/>
+      </g>
+
+      <!-- 金色粒子（最多六個） -->
+      <g fill="#f7dfa0">
+        <circle class="spark" cx="630" cy="650" r="4"   style="--d:0s"/>
+        <circle class="spark" cx="720" cy="656" r="3.4" style="--d:.35s"/>
+        <circle class="spark" cx="676" cy="644" r="4.8" style="--d:.7s"/>
+        <circle class="spark" cx="760" cy="648" r="3"   style="--d:1s"/>
+        <circle class="spark" cx="606" cy="660" r="3.4" style="--d:1.3s"/>
+        <circle class="spark" cx="700" cy="652" r="4"   style="--d:1.6s"/>
+      </g>
+    </svg>
+
+    <div class="veil"></div>
+
+    <div class="topbar">
+      <span class="brand">《湖中女人》</span>
+      <button class="skip" id="skipBtn" type="button">略過故事</button>
+    </div>
+
+    <div class="caption" id="caption" aria-live="polite">
+      <p class="line" id="lineText"></p>
+    </div>
+
+    <div class="finale" id="finale">
+      <button class="pray" id="prayBtn" type="button">向女神祈求</button>
+      <button class="ghost" id="replayBtn" type="button">↺ 重看故事</button>
+    </div>
+
+    <section class="page2" id="page2" hidden aria-label="互動召喚">
+      <header class="p2-top">
+        <button class="ghost p2-back" id="backBtn" type="button">‹ 序章</button>
+        <h1 class="p2-title">湖中女人</h1>
+        <button class="p2-sound" id="soundBtn" type="button" aria-pressed="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 9h4l5-4v14l-5-4H4z"/>
+            <path class="wave" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>
+            <path class="mute" d="M17 9l5 6M22 9l-5 6"/>
+          </svg>
+          <span id="soundLabel">靜音</span>
+        </button>
+      </header>
+
+      <div class="p2-scene">
+        <!-- 座標與背景圖相同（1370 × 1148）；湖心 (688, 662)；吉祥物在湖邊正中央，腳底 y≈990 -->
+        <svg class="scene2" viewBox="453 330 470 710" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+          <defs>
+            <radialGradient id="p2GlowFill">
+              <stop offset="0" stop-color="#fff3cf" stop-opacity=".95"/>
+              <stop offset=".35" stop-color="#f0c766" stop-opacity=".5"/>
+              <stop offset="1" stop-color="#e3b75a" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="p2ItemHalo">
+              <stop offset="0" stop-color="#fff3cf" stop-opacity=".55"/>
+              <stop offset=".5" stop-color="#f0c766" stop-opacity=".22"/>
+              <stop offset="1" stop-color="#e3b75a" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="p2CircleGlow">
+              <stop offset="0" stop-color="#f7dfa0" stop-opacity=".7"/>
+              <stop offset="1" stop-color="#e3b75a" stop-opacity="0"/>
+            </radialGradient>
+            <linearGradient id="p2BeamFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#f7dfa0" stop-opacity="0"/>
+              <stop offset=".6" stop-color="#f7dfa0" stop-opacity=".28"/>
+              <stop offset="1" stop-color="#fff3cf" stop-opacity=".75"/>
+            </linearGradient>
+            <linearGradient id="p2Bottom" gradientUnits="userSpaceOnUse" x1="0" y1="880" x2="0" y2="1110">
+              <stop offset="0" stop-color="#050914" stop-opacity="0"/>
+              <stop offset="1" stop-color="#050914" stop-opacity="1"/>
+            </linearGradient>
+            <linearGradient id="p2Top" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="420">
+              <stop offset="0" stop-color="#050914" stop-opacity="1"/>
+              <stop offset="1" stop-color="#050914" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+
+          <!-- 背景（與第一頁同一張湖泊圖） -->
+          <image href="images/lake-bg.webp" x="0" y="0" width="1370" height="1148" preserveAspectRatio="none"/>
+          <rect x="-200" y="-400" width="1770" height="1600" fill="#040818" opacity=".32"/>
+          <rect x="-200" y="-400" width="1770" height="820" fill="url(#p2Top)"/>
+          <rect x="-200" y="880" width="1770" height="700" fill="url(#p2Bottom)"/>
+
+          <!-- 光柱 -->
+          <path class="p2-beam" d="M670 -400 L706 -400 L790 662 L586 662 Z" fill="url(#p2BeamFill)"/>
+
+          <!-- 湖心光芒 -->
+          <ellipse class="p2-glow" cx="688" cy="664" rx="220" ry="38" fill="url(#p2GlowFill)"/>
+
+          <!-- 漣漪 -->
+          <g fill="none" stroke="#f7dfa0" stroke-width="1.6">
+            <ellipse class="p2-ripple a" cx="688" cy="664" rx="60" ry="9" vector-effect="non-scaling-stroke"/>
+            <ellipse class="p2-ripple b" cx="688" cy="664" rx="60" ry="9" vector-effect="non-scaling-stroke"/>
+            <ellipse class="p2-ripple c" cx="688" cy="664" rx="60" ry="9" vector-effect="non-scaling-stroke"/>
+          </g>
+
+          <!-- 金色光點 -->
+          <g fill="#f7dfa0">
+            <circle class="p2-spark" cx="650" cy="650" r="3.6" style="--d:0s"/>
+            <circle class="p2-spark" cx="722" cy="656" r="3"   style="--d:.2s"/>
+            <circle class="p2-spark" cx="684" cy="646" r="4.2" style="--d:.4s"/>
+            <circle class="p2-spark" cx="752" cy="650" r="2.8" style="--d:.6s"/>
+            <circle class="p2-spark" cx="626" cy="658" r="3"   style="--d:.8s"/>
+            <circle class="p2-spark" cx="704" cy="652" r="3.6" style="--d:1s"/>
+          </g>
+
+          <!-- 金色物品 -->
+          <g class="p2-item">
+            <g class="p2-item-rise">
+              <g class="p2-item-float">
+                <ellipse cx="688" cy="560" rx="130" ry="130" fill="url(#p2ItemHalo)"/>
+                <image id="p2ItemImg" href="" x="588" y="460" width="200" height="200" preserveAspectRatio="xMidYMid meet"/>
+              </g>
+            </g>
+          </g>
+
+          <!-- 魔法陣（吉祥物腳下） -->
+          <ellipse class="p2-circle-glow" cx="688" cy="990" rx="175" ry="50" fill="url(#p2CircleGlow)"/>
+          <g transform="translate(688 990) scale(1.35 .4)">
+            <g class="p2-circle">
+              <g class="p2-circle-spin" fill="none" stroke="#f7dfa0" vector-effect="non-scaling-stroke">
+                <circle r="108" stroke-width="2.4" vector-effect="non-scaling-stroke"/>
+                <circle r="98" stroke-width="5" stroke-dasharray="3 9" vector-effect="non-scaling-stroke"/>
+                <circle r="88" stroke-width="1.2" vector-effect="non-scaling-stroke"/>
+                <circle r="52" stroke-width="1.6" vector-effect="non-scaling-stroke"/>
+                <path d="M0 -88 L76.2 44 L-76.2 44 Z M0 88 L-76.2 -44 L76.2 -44 Z" stroke-width="1.4" vector-effect="non-scaling-stroke"/>
+                <g fill="#f7dfa0" stroke="none">
+                  <circle cx="0" cy="-108" r="5"/><circle cx="93.5" cy="-54" r="5"/><circle cx="93.5" cy="54" r="5"/>
+                  <circle cx="0" cy="108" r="5"/><circle cx="-93.5" cy="54" r="5"/><circle cx="-93.5" cy="-54" r="5"/>
+                </g>
+              </g>
+            </g>
+          </g>
+
+          <!-- 吉祥物（所有表情圖尺寸相同，腳底位置一致） -->
+          <g class="p2-mascot">
+            <g class="p2-mascot-react">
+              <image id="p2MascotImg" href="images/mascot/mascot-plaintive.webp" x="557.25" y="711.8" width="261.5" height="300" preserveAspectRatio="xMidYMid meet"/>
+            </g>
+          </g>
+        </svg>
+      </div>
+
+      <div class="p2-result" aria-live="polite">
+        <p class="p2-slogan hint show" id="p2Slogan"><span class="seg">向湖中女人祈求，</span><span class="seg">看看她會給你什麼。</span></p>
+      </div>
+
+      <div class="p2-actions">
+        <button class="pray p2-summon" id="summonBtn" type="button">祈求恩賜</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="data.js"></script>
+<script>
+/* =========================================================
+   故事設定（集中管理）
+   - at：這一段從第幾秒開始
+   - text：故事文字（照原文，不改寫）
+   - fx：這一段觸發的一次性特效
+       r1 = 第一圈漣漪
+       r23 = 第二、三圈漣漪
+       sparks = 金色粒子上升
+   每一段的畫面亮度、女神明暗寫在上方 CSS 的
+   [data-scene="數字"] 規則裡。
+   圖片位置：images/lake-bg.webp（背景）、
+            images/goddess.webp（女神）、
+            images/goddess-blur.webp（女神朦朧版）
+   ========================================================= */
+const STORY = {
+  scenes: [
+    { at: 0,  text: "傳說，很久很久以前……", fx: ["r1"] },
+    { at: 3,  text: "在一座被世人遺忘的湖泊深處，住著一位神秘的女神。", fx: [] },
+    { at: 7,  text: "每當有東西落入湖中，她便會從水面現身，向來訪者提出考驗。", fx: ["r23"] },
+    { at: 11, text: "有人因此獲得了夢寐以求的黃金。", fx: ["sparks"] },
+    { at: 14, text: "也有人……再也不願提起那一天。", fx: [] },
+    { at: 17, text: "如今，湖水再次泛起漣漪……", fx: [] }
+  ],
+  endAt: 18,        // 第幾秒顯示「向女神祈求」按鈕
+  textFadeMs: 450   // 文字淡出所需時間（毫秒）
+};
+
+const stage   = document.getElementById("stage");
+const caption = document.getElementById("caption");
+const lineEl  = document.getElementById("lineText");
+const skipBtn = document.getElementById("skipBtn");
+const finale  = document.getElementById("finale");
+const prayBtn = document.getElementById("prayBtn");
+const replayBtn = document.getElementById("replayBtn");
+const page2   = document.getElementById("page2");
+const backBtn = document.getElementById("backBtn");
+
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const FX_CLASSES = ["fx-r1", "fx-r23", "fx-sparks"];
+let timers = [];
+
+function later(fn, ms){ timers.push(setTimeout(fn, ms)); }
+function clearTimers(){ timers.forEach(clearTimeout); timers = []; }
+
+// 依「，」分句，每句一行（文字內容不變）
+function fillLines(el, text){
+  el.textContent = "";
+  text.split(/(?<=，)/).forEach(part => {
+    const span = document.createElement("span");
+    span.className = "seg";
+    span.textContent = part;
+    el.appendChild(span);
+  });
+}
+
+function showText(scene, instant){
+  if (instant || !lineEl.textContent){
+    fillLines(lineEl, scene.text);
+    caption.classList.add("in");
+    return;
+  }
+  caption.classList.remove("in");
+  later(() => {
+    fillLines(lineEl, scene.text);
+    caption.classList.add("in");
+  }, STORY.textFadeMs);
+}
+
+function goScene(index){
+  const scene = STORY.scenes[index];
+  stage.dataset.scene = String(index + 1);
+  scene.fx.forEach(name => stage.classList.add("fx-" + name));
+  showText(scene, false);
+}
+
+function finish(){
+  skipBtn.classList.add("gone");
+  skipBtn.tabIndex = -1;
+  finale.classList.add("show");
+  if (typeof preloadAll === "function") setTimeout(preloadAll, 300);
+}
+
+function play(){
+  stage.classList.add("lit");
+  STORY.scenes.forEach((scene, i) => later(() => goScene(i), scene.at * 1000));
+  later(finish, STORY.endAt * 1000);
+}
+
+function resetStage(){
+  clearTimers();
+  stage.classList.add("instant");
+  stage.classList.remove("lit", ...FX_CLASSES);
+  stage.dataset.scene = "0";
+  caption.classList.remove("in");
+  lineEl.textContent = "";
+  finale.classList.remove("show");
+  skipBtn.classList.remove("gone");
+  skipBtn.tabIndex = 0;
+  void stage.offsetWidth;            // 強制重新排版，讓動畫可以重播
+  stage.classList.remove("instant");
+}
+
+function skip(){
+  clearTimers();
+  stage.classList.add("instant");
+  stage.classList.remove(...FX_CLASSES);
+  stage.classList.add("lit");
+  const last = STORY.scenes.length - 1;
+  stage.dataset.scene = String(last + 1);
+  showText(STORY.scenes[last], true);
+  finish();
+  void stage.offsetWidth;
+  requestAnimationFrame(() => stage.classList.remove("instant"));
+}
+
+function replay(){
+  resetStage();
+  requestAnimationFrame(() => requestAnimationFrame(play));
+}
+
+function showStatic(){
+  // 減少動態模式：靜態畫面＋完整故事
+  stage.classList.add("lit");
+  stage.dataset.scene = String(STORY.scenes.length);
+  const list = document.createElement("ol");
+  list.className = "story-full";
+  STORY.scenes.forEach(s => {
+    const li = document.createElement("li");
+    fillLines(li, s.text);
+    list.appendChild(li);
+  });
+  caption.innerHTML = "";
+  caption.appendChild(list);
+  caption.classList.add("in");
+  replayBtn.hidden = true;
+  finish();
+}
+
+/* =========================================================
+   第二頁：互動召喚
+   召喚時間軸（毫秒），可在這裡調整節奏
+   ========================================================= */
+const SUMMON_TIMELINE = {
+  circle: 300,   // 魔法陣亮起
+  lake:   700,   // 湖心發光、漣漪
+  beam:   1200,  // 光柱、光點
+  item:   1700,  // 金色物品升起
+  react:  2200,  // 吉祥物換表情
+  slogan: 2500,  // 標語出現
+  done:   3000   // 召喚完成
+};
+
+const DATA = window.LAKE_DATA;
+const summonBtn = document.getElementById("summonBtn");
+const soundBtn  = document.getElementById("soundBtn");
+const soundLabel= document.getElementById("soundLabel");
+const itemImg   = document.getElementById("p2ItemImg");
+const mascotImg = document.getElementById("p2MascotImg");
+const sloganEl  = document.getElementById("p2Slogan");
+
+const P2_FX = ["is-summoning","fx-glow","fx-beam","fx-item","fx-react","has-result"];
+let p2Timers = [];
+let summoning = false;
+let pending = null;      // 這一次召喚抽到的結果
+let hasResult = false;
+
+function p2Later(fn, ms){ p2Timers.push(setTimeout(fn, ms)); }
+function p2Clear(){ p2Timers.forEach(clearTimeout); p2Timers = []; }
+
+// 等機率抽一個（三個資料池各自呼叫，互不影響）
+function pick(list){ return list[Math.floor(Math.random() * list.length)]; }
+
+function setHref(img, src){
+  img.setAttribute("href", src);
+  img.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", src);
+}
+
+// 預先載入所有圖片，避免切換時閃爍
+let preloaded = false;
+function preloadAll(){
+  if (preloaded) return; preloaded = true;
+  [...DATA.items.map(i => i.src), ...DATA.expressions.map(e => e.src), DATA.prayPose]
+    .forEach(src => { const im = new Image(); im.src = src; });
+}
+
+/* ---------- 音效（瀏覽器內建合成，不需要音效檔；預設靜音） ---------- */
+let soundOn = false, audioCtx = null;
+function tone(freq, start, dur, vol){
+  if (!soundOn || !audioCtx) return;
+  const t = audioCtx.currentTime + start;
+  const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  o.type = "sine"; o.frequency.value = freq;
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(vol, t + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(audioCtx.destination);
+  o.start(t); o.stop(t + dur + 0.05);
+}
+function soundSummon(){ [523, 659, 784, 988].forEach((f, i) => tone(f, i * 0.12, 0.9, 0.05)); }
+function soundReveal(){ tone(1047, 0, 1.4, 0.07); tone(1319, 0.06, 1.4, 0.05); tone(1568, 0.12, 1.2, 0.04); }
+soundBtn.addEventListener("click", () => {
+  soundOn = !soundOn;
+  if (soundOn && !audioCtx){
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { audioCtx = null; }
+  }
+  if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+  soundBtn.setAttribute("aria-pressed", String(soundOn));
+  soundLabel.textContent = soundOn ? "音效" : "靜音";
+});
+
+/* ---------- 召喚流程 ---------- */
+function showItem(){
+  setHref(itemImg, pending.item.src);
+  page2.classList.add("fx-item", "has-result");
+  soundReveal();
+}
+function showReaction(){
+  setHref(mascotImg, pending.face.src);
+  page2.classList.remove("fx-react");
+  void page2.offsetWidth;
+  page2.classList.add("fx-react");
+}
+function showSlogan(){
+  sloganEl.classList.remove("hint");
+  fillLines(sloganEl, pending.slogan);
+  sloganEl.classList.add("show");
+}
+function endSummon(){
+  page2.classList.remove("is-summoning", "fx-beam");
+  summoning = false;
+  hasResult = true;
+  summonBtn.disabled = false;
+  summonBtn.textContent = "再次祈求";
+}
+
+function summon(){
+  if (summoning) return;           // 動畫期間不可重複觸發
+  summoning = true;
+  summonBtn.disabled = true;
+
+  // 三個資料池各自獨立抽取
+  pending = { item: pick(DATA.items), face: pick(DATA.expressions), slogan: pick(DATA.slogans) };
+
+  if (reduceMotion){ finishNow(); return; }
+
+  // 0 秒：前一次結果淡出，吉祥物回到祈求姿勢
+  p2Clear();
+  page2.classList.remove(...P2_FX);
+  sloganEl.classList.remove("show");
+  setHref(mascotImg, DATA.prayPose);
+  void page2.offsetWidth;
+  soundSummon();
+
+  const T = SUMMON_TIMELINE;
+  p2Later(() => page2.classList.add("is-summoning"), T.circle);
+  p2Later(() => page2.classList.add("fx-glow"), T.lake);
+  p2Later(() => page2.classList.add("fx-beam"), T.beam);
+  p2Later(showItem, T.item);
+  p2Later(showReaction, T.react);
+  p2Later(showSlogan, T.slogan);
+  p2Later(endSummon, T.done);
+}
+
+// 直接顯示結果（減少動態、返回第一頁、切到背景時使用）
+function finishNow(){
+  p2Clear();
+  if (!pending){ summoning = false; summonBtn.disabled = false; return; }
+  page2.classList.add("instant");
+  page2.classList.remove(...P2_FX);
+  setHref(itemImg, pending.item.src);
+  setHref(mascotImg, pending.face.src);
+  sloganEl.classList.remove("hint");
+  fillLines(sloganEl, pending.slogan);
+  sloganEl.classList.add("show");
+  page2.classList.add("fx-glow", "fx-item", "has-result");
+  endSummon();
+  void page2.offsetWidth;
+  requestAnimationFrame(() => page2.classList.remove("instant"));
+}
+
+summonBtn.addEventListener("click", summon);
+
+// 離開畫面時清除未完成的計時器，直接定格在結果
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && summoning) finishNow();
+});
+
+function openPage2(){
+  preloadAll();
+  page2.hidden = false;
+  requestAnimationFrame(() => page2.classList.add("show"));
+  summonBtn.focus({ preventScroll: true });
+}
+function closePage2(){
+  if (summoning) finishNow();
+  page2.classList.remove("show");
+  setTimeout(() => { page2.hidden = true; }, reduceMotion ? 0 : 600);
+  prayBtn.focus({ preventScroll: true });
+}
+
+skipBtn.addEventListener("click", skip);
+replayBtn.addEventListener("click", replay);
+prayBtn.addEventListener("click", openPage2);
+backBtn.addEventListener("click", closePage2);
+
+if (reduceMotion){
+  showStatic();
+} else {
+  requestAnimationFrame(() => requestAnimationFrame(play));
+}
+</script>
+
+</body>
+</html>
